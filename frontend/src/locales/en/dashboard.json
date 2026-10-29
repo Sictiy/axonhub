@@ -1,4 +1,7 @@
 {
+  "usageStats.backToUsers": "Back to users",
+  "usageStats.models": "Models",
+  "usageStats.apiKeys": "API keys",
   "dashboard.sections.overview": "Overview",
   "dashboard.sections.channels": "Channel Analytics",
   "dashboard.sections.apiKeys": "API Key Analytics",

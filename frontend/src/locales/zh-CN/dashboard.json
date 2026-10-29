@@ -1,4 +1,7 @@
 {
+  "usageStats.backToUsers": "返回用户列表",
+  "usageStats.models": "模型",
+  "usageStats.apiKeys": "API Key",
   "dashboard.sections.overview": "概览",
   "dashboard.sections.channels": "渠道分析",
   "dashboard.sections.apiKeys": "API密钥分析",
