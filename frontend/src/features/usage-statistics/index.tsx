@@ -6,10 +6,10 @@ import { Main } from '@/components/layout/main';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { DateRangePicker, type DateTimeRangeValue } from '@/components/date-range-picker';
-import { buildDateRangeWhereClause } from '@/utils/date-range';
+import { buildDateRangeWhereClause, defaultDateTimeRangeValue } from '@/utils/date-range';
 import { formatNumber } from '@/utils/format-number';
 import { useGeneralSettings } from '@/features/system/data/system';
-import { useUsageStatsByUser } from './data/usage-stats';
+import { useUsageStatsByUser, useUserUsageDetails } from './data/usage-stats';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -24,6 +24,17 @@ export default function UsageStatisticsPage() {
   const { t, i18n } = useTranslation();
   const [dateRange, setDateRange] = useState<DateTimeRangeValue | undefined>();
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUser, setSelectedUser] = useState<{ userId: string; userName: string }>();
+  const dateWhere = useMemo(() => buildDateRangeWhereClause(dateRange), [dateRange]);
+  const details = useUserUsageDetails(selectedUser?.userId, dateWhere.createdAtGTE, dateWhere.createdAtLTE);
+
+  const selectPeriod = (period: 'today' | 'week' | 'month') => {
+    const today = new Date();
+    const from = new Date(today);
+    if (period === 'week') from.setDate(today.getDate() - (today.getDay() + 6) % 7);
+    if (period === 'month') from.setDate(1);
+    setDateRange({ ...defaultDateTimeRangeValue(), from, to: today });
+  };
 
   const timeWindowParam = useMemo(() => {
     if (!dateRange) return undefined;
@@ -85,7 +96,8 @@ export default function UsageStatisticsPage() {
 
       <Main fixed className='flex flex-col'>
         <div className='flex items-center justify-between gap-4 mb-4 flex-shrink-0'>
-          <div className='flex items-center gap-2'>
+          <div className='flex flex-wrap items-center gap-2'>
+            {selectedUser && <Button variant='outline' size='sm' onClick={() => setSelectedUser(undefined)}>{t('usageStats.backToUsers')}</Button>}
             <div className='relative w-72'>
               <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground' />
               <Input
@@ -96,6 +108,9 @@ export default function UsageStatisticsPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+            <Button variant='outline' size='sm' className='h-8' onClick={() => selectPeriod('today')}>{t('dashboard.stats.today')}</Button>
+            <Button variant='outline' size='sm' className='h-8' onClick={() => selectPeriod('week')}>{t('dashboard.stats.thisWeek')}</Button>
+            <Button variant='outline' size='sm' className='h-8' onClick={() => selectPeriod('month')}>{t('dashboard.stats.thisMonth')}</Button>
             <DateRangePicker value={dateRange} onChange={setDateRange} />
             {dateRange && (dateRange.from || dateRange.to) && (
               <Button
@@ -110,7 +125,23 @@ export default function UsageStatisticsPage() {
           </div>
         </div>
 
-        <div className='shadow-soft relative flex-1 overflow-auto overflow-x-hidden rounded-2xl border border-[var(--table-border)]'>
+        {selectedUser ? (
+          <div className='flex-1 overflow-auto space-y-6'>
+            <h2 className='text-lg font-semibold'>{selectedUser.userName}</h2>
+            {details.isLoading ? <Skeleton className='h-40 w-full' /> : details.error ? <div className='text-red-500'>{t('common.loadError')}</div> : ([['models', t('usageStats.models')], ['apiKeys', t('usageStats.apiKeys')]] as const).map(([key, title]) => (
+              <section key={key}>
+                <h3 className='mb-2 font-semibold'>{title}</h3>
+                <div className='shadow-soft overflow-auto rounded-2xl border border-[var(--table-border)]'>
+                  <Table className='bg-[var(--table-background)]'>
+                    <TableHeader className='bg-[var(--table-header)]'><TableRow><TableHead>{title}</TableHead><TableHead className='text-right'>{t('dashboard.stats.requestCount')}</TableHead><TableHead className='text-right'>{t('dashboard.stats.tokenCount')}</TableHead><TableHead className='text-right'>{t('dashboard.stats.userCost')}</TableHead></TableRow></TableHeader>
+                    <TableBody>{details.data?.[key].map(item => <TableRow key={item.id}><TableCell>{item.name || item.id}</TableCell><TableCell className='text-right font-mono'>{formatNumber(item.requestCount)}</TableCell><TableCell className='text-right font-mono'>{formatNumber(item.totalTokens)}</TableCell><TableCell className='text-right font-mono'>{formatCurrency(item.totalCost)}</TableCell></TableRow>)}</TableBody>
+                  </Table>
+                  {!details.data?.[key].length && <div className='p-6 text-center text-sm text-muted-foreground'>{t('common.noResults')}</div>}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : <div className='shadow-soft relative flex-1 overflow-auto overflow-x-hidden rounded-2xl border border-[var(--table-border)]'>
           {filteredData.length === 0 ? (
             <div className='flex h-[200px] items-center justify-center bg-[var(--table-background)] rounded-2xl'>
               <div className='text-muted-foreground text-sm'>
@@ -135,7 +166,7 @@ export default function UsageStatisticsPage() {
                     className='group/row table-row-hover rounded-xl border-0 !bg-[var(--table-background)] transition-all duration-200 ease-in-out'
                   >
                     <TableCell className='text-muted-foreground text-center text-xs border-0 bg-inherit px-4 py-3'>{index + 1}</TableCell>
-                    <TableCell className='font-medium border-0 bg-inherit px-4 py-3'>{item.userName}</TableCell>
+                    <TableCell className='font-medium border-0 bg-inherit px-4 py-3'><button type='button' className='text-primary hover:underline' onClick={() => setSelectedUser(item)}>{item.userName}</button></TableCell>
                     <TableCell className='text-right font-mono text-sm border-0 bg-inherit px-4 py-3'>{formatNumber(item.requestCount)}</TableCell>
                     <TableCell className='text-right font-mono text-sm border-0 bg-inherit px-4 py-3'>{formatNumber(item.totalTokens)}</TableCell>
                     <TableCell className='text-right font-mono text-sm border-0 bg-inherit px-4 py-3'>{formatCurrency(item.totalCost)}</TableCell>
@@ -149,7 +180,7 @@ export default function UsageStatisticsPage() {
               <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
             </div>
           )}
-        </div>
+        </div>}
       </Main>
     </>
   );
