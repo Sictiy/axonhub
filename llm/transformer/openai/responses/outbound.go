@@ -256,6 +256,11 @@ func (t *OutboundTransformer) TransformRequest(ctx context.Context, llmReq *llm.
 			tools = append(tools, tool)
 		case "function":
 			tool := convertFunctionToTool(item)
+			// Anthropic defaults to non-strict tools, but Responses may normalize
+			// an omitted strict flag by making every property required.
+			if llmReq.APIFormat == llm.APIFormatAnthropicMessage && tool.Strict == nil {
+				tool.Strict = lo.ToPtr(false)
+			}
 			if namespace := item.Function.Namespace; namespace != "" {
 				if index, ok := namespaceIndexes[namespace]; ok {
 					tools[index].Tools = append(tools[index].Tools, tool)
@@ -272,9 +277,12 @@ func (t *OutboundTransformer) TransformRequest(ctx context.Context, llmReq *llm.
 		}
 	}
 
+	input := convertInputFromMessages(llmReq.Messages, llmReq.TransformOptions)
+	input = ensureJSONObjectKeyword(input, llmReq.ResponseFormat)
+
 	payload := Request{
 		Model:                llmReq.Model,
-		Input:                convertInputFromMessages(llmReq.Messages, llmReq.TransformOptions),
+		Input:                input,
 		Instructions:         convertInstructionsFromMessages(llmReq.Messages),
 		Tools:                tools,
 		ParallelToolCalls:    llmReq.ParallelToolCalls,
@@ -456,7 +464,13 @@ func (t *OutboundTransformer) transformStandardResponse(
 		case "failed":
 			choice.FinishReason = lo.ToPtr("error")
 		case "incomplete":
-			choice.FinishReason = lo.ToPtr("length")
+			// Distinguish truncation from content-filter rejection, matching the
+			// streaming path.
+			if resp.IncompleteDetails != nil && resp.IncompleteDetails.Reason == "content_filter" {
+				choice.FinishReason = lo.ToPtr("content_filter")
+			} else {
+				choice.FinishReason = lo.ToPtr("length")
+			}
 		case "canceled", "cancelled":
 			choice.FinishReason = lo.ToPtr("cancelled")
 		}
