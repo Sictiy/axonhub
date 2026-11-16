@@ -28,6 +28,10 @@ func (h *SystemHandlers) UserUsageDetails(c *gin.Context) {
 			*item.dest = &t
 		}
 	}
+	if from != nil && to != nil && from.After(*to) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "from must not be after to"})
+		return
+	}
 	data, err := h.SystemService.UserUsageDetails(c.Request.Context(), guid.ID, from, to)
 	if err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "unable to retrieve usage details"})

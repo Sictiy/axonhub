@@ -46,6 +46,23 @@ func TestUserUsageDetailsProjectUserAndTime(t *testing.T) {
 	require.EqualValues(t, 30, data.Models[0].TotalTokens)
 	require.Equal(t, "first", data.APIKeys[0].Name)
 	require.EqualValues(t, 40, data.APIKeys[0].TotalTokens)
+	// Historical usage remains attributed after a key is renamed and soft deleted.
+	_, err = client.APIKey.UpdateOneID(key1.ID).SetName("renamed").SetDeletedAt(12345).Save(ctx)
+	require.NoError(t, err)
+	data, err = service.UserUsageDetails(ctx, 10, &from, &to)
+	require.NoError(t, err)
+	require.Len(t, data.APIKeys, 2)
+	require.Equal(t, "renamed", data.APIKeys[0].Name)
+	require.EqualValues(t, 40, data.APIKeys[0].TotalTokens)
+	empty, err := service.UserUsageDetails(ctx, 999, &from, &to)
+	require.NoError(t, err)
+	require.Empty(t, empty.Models)
+	require.Empty(t, empty.APIKeys)
+	projectOwner := &ent.User{Edges: ent.UserEdges{ProjectUsers: []*ent.UserProject{{ProjectID: 1, IsOwner: true}}}}
+	_, err = service.UserUsageDetails(contexts.WithUser(ctx, projectOwner), 10, &from, &to)
+	require.NoError(t, err)
+	_, err = service.UserUsageDetails(contexts.WithProjectID(contexts.WithUser(ctx, projectOwner), 2), 10, &from, &to)
+	require.Error(t, err)
 	_, err = service.UserUsageDetails(contexts.WithUser(ctx, &ent.User{}), 10, &from, &to)
 	require.Error(t, err)
 }
