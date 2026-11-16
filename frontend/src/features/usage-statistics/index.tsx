@@ -9,6 +9,7 @@ import { DateRangePicker, type DateTimeRangeValue } from '@/components/date-rang
 import { buildDateRangeWhereClause, defaultDateTimeRangeValue } from '@/utils/date-range';
 import { formatNumber } from '@/utils/format-number';
 import { useGeneralSettings } from '@/features/system/data/system';
+import { useSelectedProjectId } from '@/stores/projectStore';
 import { useUsageStatsByUser, useUserUsageDetails } from './data/usage-stats';
 import { Input } from '@/components/ui/input';
 import {
@@ -21,6 +22,11 @@ import {
 } from '@/components/ui/table';
 
 export default function UsageStatisticsPage() {
+  const projectId = useSelectedProjectId();
+  return <UsageStatisticsContent key={projectId ?? 'none'} />;
+}
+
+function UsageStatisticsContent() {
   const { t, i18n } = useTranslation();
   const [dateRange, setDateRange] = useState<DateTimeRangeValue | undefined>();
   const [searchTerm, setSearchTerm] = useState('');

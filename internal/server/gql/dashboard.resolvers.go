@@ -17,7 +17,6 @@ import (
 	"github.com/looplj/axonhub/internal/contexts"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/apikey"
-	"github.com/looplj/axonhub/internal/ent/privacy"
 	"github.com/looplj/axonhub/internal/ent/project"
 	"github.com/looplj/axonhub/internal/ent/request"
 	"github.com/looplj/axonhub/internal/ent/usagelog"
@@ -850,9 +849,6 @@ func (r *queryResolver) UsageStatsByUser(ctx context.Context, timeWindow *string
 		return nil, fmt.Errorf("permission denied: only project owners can view usage statistics")
 	}
 
-	// For owners/system owners, we allow querying all logs within the project
-	ctx = privacy.DecisionContext(ctx, privacy.Allow)
-
 	var since time.Time
 	var until time.Time
 	applyGTE := false
@@ -901,38 +897,40 @@ func (r *queryResolver) UsageStatsByUser(ctx context.Context, timeWindow *string
 		query = query.Where(usagelog.CreatedAtLTE(until))
 	}
 
-	err := query.Modify(func(s *sql.Selector) {
-		apiKeyTable := sql.Table(apikey.Table)
-		userTable := sql.Table("users")
+	_, err := authz.RunAsHost(ctx, r.client, "project-user-usage-summary", func(hostCtx context.Context) (struct{}, error) {
+		return struct{}{}, query.Modify(func(s *sql.Selector) {
+			apiKeyTable := sql.Table(apikey.Table)
+			userTable := sql.Table("users")
 
-		s.Join(apiKeyTable).On(
-			s.C(usagelog.FieldAPIKeyID),
-			apiKeyTable.C(apikey.FieldID),
-		)
-		s.Join(userTable).On(
-			apiKeyTable.C(apikey.FieldUserID),
-			userTable.C("id"),
-		)
-
-		s.Where(sql.EQ(apiKeyTable.C(apikey.FieldDeletedAt), 0))
-
-		s.Select(
-			sql.As(userTable.C("id"), "user_id"),
-			sql.As(userTable.C("first_name"), "first_name"),
-			sql.As(userTable.C("last_name"), "last_name"),
-			sql.As(userTable.C("email"), "email"),
-			sql.As(sql.Count(s.C(usagelog.FieldID)), "request_count"),
-			sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", s.C(usagelog.FieldTotalTokens)), "total_tokens"),
-			sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", s.C(usagelog.FieldTotalCost)), "total_cost"),
-		).
-			GroupBy(
+			s.Join(apiKeyTable).On(
+				s.C(usagelog.FieldAPIKeyID),
+				apiKeyTable.C(apikey.FieldID),
+			)
+			s.Join(userTable).On(
+				apiKeyTable.C(apikey.FieldUserID),
 				userTable.C("id"),
-				userTable.C("first_name"),
-				userTable.C("last_name"),
-				userTable.C("email"),
+			)
+
+			s.Where(sql.EQ(apiKeyTable.C(apikey.FieldProjectID), projectID))
+
+			s.Select(
+				sql.As(userTable.C("id"), "user_id"),
+				sql.As(userTable.C("first_name"), "first_name"),
+				sql.As(userTable.C("last_name"), "last_name"),
+				sql.As(userTable.C("email"), "email"),
+				sql.As(sql.Count(s.C(usagelog.FieldID)), "request_count"),
+				sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", s.C(usagelog.FieldTotalTokens)), "total_tokens"),
+				sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", s.C(usagelog.FieldTotalCost)), "total_cost"),
 			).
-			OrderBy(sql.Desc("request_count"))
-	}).Scan(ctx, &results)
+				GroupBy(
+					userTable.C("id"),
+					userTable.C("first_name"),
+					userTable.C("last_name"),
+					userTable.C("email"),
+				).
+				OrderBy(sql.Desc("request_count"))
+		}).Scan(hostCtx, &results)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get usage stats by user: %w", err)
 	}

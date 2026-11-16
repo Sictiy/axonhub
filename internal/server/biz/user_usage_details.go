@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
+	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/contexts"
 	"github.com/looplj/axonhub/internal/ent/apikey"
-	"github.com/looplj/axonhub/internal/ent/privacy"
 	"github.com/looplj/axonhub/internal/ent/usagelog"
 )
 
@@ -43,44 +43,45 @@ func (s *SystemService) UserUsageDetails(ctx context.Context, userID int, from, 
 	if !owner {
 		return nil, fmt.Errorf("permission denied")
 	}
-	ctx = privacy.DecisionContext(ctx, privacy.Allow)
-	result := &UserUsageDetails{Models: []UserUsageBreakdown{}, APIKeys: []UserUsageBreakdown{}}
-	for _, byModel := range []bool{true, false} {
-		var rows []struct {
-			ID     string  `json:"id"`
-			Name   string  `json:"name"`
-			Count  int     `json:"request_count"`
-			Tokens int64   `json:"total_tokens"`
-			Cost   float64 `json:"total_cost"`
-		}
-		q := s.entFromContext(ctx).UsageLog.Query().Where(usagelog.APIKeyIDNotNil(), usagelog.ProjectIDEQ(projectID))
-		if from != nil {
-			q = q.Where(usagelog.CreatedAtGTE(*from))
-		}
-		if to != nil {
-			q = q.Where(usagelog.CreatedAtLTE(*to))
-		}
-		err := q.Modify(func(sel *sql.Selector) {
-			keys := sql.Table(apikey.Table)
-			sel.Join(keys).On(sel.C(usagelog.FieldAPIKeyID), keys.C(apikey.FieldID))
-			sel.Where(sql.And(sql.EQ(keys.C(apikey.FieldUserID), userID), sql.EQ(keys.C(apikey.FieldDeletedAt), 0)))
-			id, name := keys.C(apikey.FieldID), keys.C(apikey.FieldName)
-			if byModel {
-				id, name = sel.C(usagelog.FieldModelID), sel.C(usagelog.FieldModelID)
+	return authz.RunAsHost(ctx, s.entFromContext(ctx), "project-user-usage-details", func(ctx context.Context) (*UserUsageDetails, error) {
+		result := &UserUsageDetails{Models: []UserUsageBreakdown{}, APIKeys: []UserUsageBreakdown{}}
+		for _, byModel := range []bool{true, false} {
+			var rows []struct {
+				ID     string  `json:"id"`
+				Name   string  `json:"name"`
+				Count  int     `json:"request_count"`
+				Tokens int64   `json:"total_tokens"`
+				Cost   float64 `json:"total_cost"`
 			}
-			sel.Select(sql.As(id, "id"), sql.As(name, "name"), sql.As(sql.Count(sel.C(usagelog.FieldID)), "request_count"), sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", sel.C(usagelog.FieldTotalTokens)), "total_tokens"), sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", sel.C(usagelog.FieldTotalCost)), "total_cost")).GroupBy(id, name).OrderBy(sql.Desc("request_count"))
-		}).Scan(ctx, &rows)
-		if err != nil {
-			return nil, err
-		}
-		for _, row := range rows {
-			v := UserUsageBreakdown{ID: row.ID, Name: row.Name, RequestCount: row.Count, TotalTokens: row.Tokens, TotalCost: row.Cost}
-			if byModel {
-				result.Models = append(result.Models, v)
-			} else {
-				result.APIKeys = append(result.APIKeys, v)
+			q := s.entFromContext(ctx).UsageLog.Query().Where(usagelog.APIKeyIDNotNil(), usagelog.ProjectIDEQ(projectID))
+			if from != nil {
+				q = q.Where(usagelog.CreatedAtGTE(*from))
+			}
+			if to != nil {
+				q = q.Where(usagelog.CreatedAtLTE(*to))
+			}
+			err := q.Modify(func(sel *sql.Selector) {
+				keys := sql.Table(apikey.Table)
+				sel.Join(keys).On(sel.C(usagelog.FieldAPIKeyID), keys.C(apikey.FieldID))
+				sel.Where(sql.And(sql.EQ(keys.C(apikey.FieldUserID), userID), sql.EQ(keys.C(apikey.FieldProjectID), projectID)))
+				id, name := keys.C(apikey.FieldID), keys.C(apikey.FieldName)
+				if byModel {
+					id, name = sel.C(usagelog.FieldModelID), sel.C(usagelog.FieldModelID)
+				}
+				sel.Select(sql.As(id, "id"), sql.As(name, "name"), sql.As(sql.Count(sel.C(usagelog.FieldID)), "request_count"), sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", sel.C(usagelog.FieldTotalTokens)), "total_tokens"), sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", sel.C(usagelog.FieldTotalCost)), "total_cost")).GroupBy(id, name).OrderBy(sql.Desc("request_count"))
+			}).Scan(ctx, &rows)
+			if err != nil {
+				return nil, err
+			}
+			for _, row := range rows {
+				v := UserUsageBreakdown{ID: row.ID, Name: row.Name, RequestCount: row.Count, TotalTokens: row.Tokens, TotalCost: row.Cost}
+				if byModel {
+					result.Models = append(result.Models, v)
+				} else {
+					result.APIKeys = append(result.APIKeys, v)
+				}
 			}
 		}
-	}
-	return result, nil
+		return result, nil
+	})
 }
