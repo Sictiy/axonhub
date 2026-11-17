@@ -20,6 +20,7 @@ import { type ProviderModel, type ProvidersData } from '@/features/models/data/p
 import { useProvidersData } from '@/features/models/data/providers';
 import { useGeneralSettings } from '@/features/system/data/system';
 import { useChannels } from '../context/channels-context';
+import { buildItemsFromProviderModel } from '../data/context-price';
 import { useChannelModelPrices, useSaveChannelModelPrices } from '../data/channels';
 import {
   PricingMode,
@@ -30,7 +31,7 @@ import {
 } from '../data/schema';
 
 const priceItemCodes = ['prompt_tokens', 'completion_tokens', 'prompt_cached_tokens', 'prompt_write_cached_tokens'] as const;
-const pricingModes = ['flat_fee', 'usage_per_unit', 'usage_tiered', 'usage_volume'] as const;
+const pricingModes = ['flat_fee', 'usage_per_unit', 'usage_tiered', 'usage_volume', 'input_context_volume'] as const;
 const promptWriteCacheVariantCodes = ['five_min', 'one_hour'] as const;
 
 // Default exchange rate applied when filling prices from the model library.
@@ -176,7 +177,7 @@ const createPriceFormSchema = (t: (key: string) => string) =>
             path: [...pathPrefix, 'usagePerUnit'],
           });
         }
-        if (mode === 'usage_tiered' || mode === 'usage_volume') {
+        if (mode === 'usage_tiered' || mode === 'usage_volume' || mode === 'input_context_volume') {
           const tiers = usageTiered?.tiers || [];
           if (tiers.length === 0) {
             ctx.addIssue({
@@ -446,38 +447,6 @@ function findProviderModelById(providersData: ProvidersData, modelId: string, pr
   return null;
 }
 
-function buildItemsFromProviderModel(
-  model: ProviderModel,
-  multiplier: number = 1,
-  exchangeRate: number = 1
-): PriceFormData['prices'][number]['price']['items'] {
-  const items: PriceFormData['prices'][number]['price']['items'] = [];
-  const cost = model.cost;
-
-  const pushUsagePerUnit = (itemCode: (typeof priceItemCodes)[number], value: number) => {
-    items.push({
-      itemCode,
-      pricing: {
-        mode: 'usage_per_unit',
-        usagePerUnit: (value * multiplier * exchangeRate).toFixed(4),
-      },
-    });
-  };
-
-  if (cost?.input != null) pushUsagePerUnit('prompt_tokens', cost.input);
-  if (cost?.output != null) pushUsagePerUnit('completion_tokens', cost.output);
-  if (cost?.cache_read != null) pushUsagePerUnit('prompt_cached_tokens', cost.cache_read);
-  if (cost?.cache_write != null) pushUsagePerUnit('prompt_write_cached_tokens', cost.cache_write);
-
-  if (items.length === 0) {
-    items.push({
-      itemCode: 'prompt_tokens',
-      pricing: { mode: 'usage_per_unit', usagePerUnit: '0' },
-    });
-  }
-
-  return items;
-}
 
 function mergeItemsWithProviderCost(
   currentItems: PriceFormData['prices'][number]['price']['items'],
@@ -490,31 +459,13 @@ function mergeItemsWithProviderCost(
     byCode.set(item.itemCode, item);
   });
 
-  const applyUsagePerUnit = (itemCode: (typeof priceItemCodes)[number], value: number) => {
-    const existing = byCode.get(itemCode);
-    if (existing) {
-      byCode.set(itemCode, {
-        ...existing,
-        pricing: {
-          mode: 'usage_per_unit',
-          usagePerUnit: (value * multiplier * exchangeRate).toFixed(4),
-          flatFee: '',
-          usageTiered: null,
-        },
-      });
-      return;
-    }
-    byCode.set(itemCode, {
-      itemCode,
-      pricing: { mode: 'usage_per_unit', usagePerUnit: (value * multiplier * exchangeRate).toFixed(4) },
-    });
-  };
+  if (!model.cost || [model.cost.input, model.cost.output, model.cost.cache_read, model.cost.cache_write].every((value) => value == null)) return currentItems;
 
-  const cost = model.cost;
-  if (cost?.input != null) applyUsagePerUnit('prompt_tokens', cost.input);
-  if (cost?.output != null) applyUsagePerUnit('completion_tokens', cost.output);
-  if (cost?.cache_read != null) applyUsagePerUnit('prompt_cached_tokens', cost.cache_read);
-  if (cost?.cache_write != null) applyUsagePerUnit('prompt_write_cached_tokens', cost.cache_write);
+  // Reuse the same context tiers when refreshing existing prices from the catalog.
+  for (const item of buildItemsFromProviderModel(model, multiplier, exchangeRate)) {
+    const existing = byCode.get(item.itemCode);
+    byCode.set(item.itemCode, { ...existing, ...item, pricing: item.pricing });
+  }
 
   return Array.from(byCode.values());
 }

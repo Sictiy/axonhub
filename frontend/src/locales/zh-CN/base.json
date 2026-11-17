@@ -1,4 +1,6 @@
 {
+  "price.input_context_volume_help": "根据总输入 token 数（包括缓存）选档，各费用项分别按自身配置的阈值计算。",
+  "price.mode_input_context_volume": "按总输入长度全量计价",
   "sidebar.modules.admin": "管理",
   "sidebar.modules.project": "项目",
   "sidebar.modules.plugins": "插件",
