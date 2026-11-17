@@ -67,9 +67,10 @@ func (s *SystemService) UserUsageDetails(ctx context.Context, userID int, from, 
 				sel.Join(keys).On(sel.C(usagelog.FieldAPIKeyID), keys.C(apikey.FieldID))
 				sel.Where(sql.And(sql.EQ(keys.C(apikey.FieldUserID), userID), sql.EQ(keys.C(apikey.FieldProjectID), projectID)))
 				id, name := keys.C(apikey.FieldID), keys.C(apikey.FieldName)
-				if grouping == "model" {
+				switch grouping {
+				case "model":
 					id, name = sel.C(usagelog.FieldModelID), sel.C(usagelog.FieldModelID)
-				} else if grouping == "channel" {
+				case "channel":
 					channels := sql.Table(channel.Table)
 					sel.LeftJoin(channels).On(sel.C(usagelog.FieldChannelID), channels.C(channel.FieldID))
 					id = fmt.Sprintf("COALESCE(%s, 0)", sel.C(usagelog.FieldChannelID))

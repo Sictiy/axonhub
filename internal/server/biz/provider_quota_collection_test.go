@@ -516,11 +516,9 @@ func TestProviderQuotaService_ResetChannelQuotaNow_SucceedsWhenReloadFails(t *te
 	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
 	svc, notifications, _ := newTestQuotaWebhookHarness(t, client)
 	svc.checkers["codex"] = &resettingQuotaResetter{
-		countingQuotaResetter: countingQuotaResetter{
-			countingQuotaChecker: countingQuotaChecker{providerType: "codex"},
-			resets:               provider_quota.ResetList{Supported: true},
-		},
-		client: client,
+		providerType: "codex",
+		resets:       provider_quota.ResetList{Supported: true},
+		client:       client,
 	}
 
 	ch := createProviderQuotaCollectionChannel(t, ctx, client, "Codex", channel.TypeCodex)
@@ -569,8 +567,8 @@ func TestProviderQuotaService_ResetChannelQuotaNow_SucceedsWhenReloadFails(t *te
 			Exec(ctx))
 
 		checker := &statusQuotaResetter{
-			statusQuotaChecker: statusQuotaChecker{providerType: "codex", status: "available"},
-			client:             client,
+			providerType: "codex", status: "available",
+			client: client,
 		}
 		svc.checkers["codex"] = checker
 
@@ -598,8 +596,8 @@ func TestProviderQuotaService_ResetChannelQuotaNow_SucceedsWhenReloadFails(t *te
 		// the _previous_status carry in saveQuotaStatus; a checker error goes
 		// to saveQuotaError instead.
 		checker := &statusQuotaResetter{
-			statusQuotaChecker: statusQuotaChecker{providerType: "codex", status: "unknown"},
-			client:             client,
+			providerType: "codex", status: "unknown",
+			client: client,
 		}
 		svc.checkers["codex"] = checker
 
@@ -634,8 +632,8 @@ func TestProviderQuotaService_ResetChannelQuotaNow_SucceedsWhenReloadFails(t *te
 			Exec(ctx))
 
 		checker := &statusQuotaResetter{
-			statusQuotaChecker: statusQuotaChecker{providerType: "codex", status: "available"},
-			client:             client,
+			providerType: "codex", status: "available",
+			client: client,
 		}
 		svc.checkers["codex"] = checker
 
@@ -761,10 +759,8 @@ func TestProviderQuotaService_ResetChannelQuotaNow_FailedReloadPrefersCacheOverS
 		// reset, then the row is deleted so the post-reset reload fails;
 		// the refresh itself reports available as well.
 		svc.checkers["codex"] = &savingQuotaResetter{
-			statusQuotaResetter: statusQuotaResetter{
-				statusQuotaChecker: statusQuotaChecker{providerType: "codex", status: "available"},
-				client:             client,
-			},
+			providerType: "codex", status: "available",
+			client:           client,
 			svc:              svc,
 			concurrentStatus: "available",
 		}
@@ -805,10 +801,8 @@ func TestProviderQuotaService_ResetChannelQuotaNow_FailedReloadPrefersCacheOverS
 
 		// In-flight check saves available; the refresh reports exhausted.
 		svc.checkers["codex"] = &savingQuotaResetter{
-			statusQuotaResetter: statusQuotaResetter{
-				statusQuotaChecker: statusQuotaChecker{providerType: "codex", status: "exhausted"},
-				client:             client,
-			},
+			providerType: "codex", status: "exhausted",
+			client:           client,
 			svc:              svc,
 			concurrentStatus: "available",
 		}
@@ -863,10 +857,8 @@ func TestProviderQuotaService_ResetChannelQuotaNow_FailedReloadUnknownCacheUsesF
 		// fresh available), then the row is deleted so the post-reset
 		// reload fails; the refresh itself reports available as well.
 		svc.checkers["codex"] = &stagedSavingQuotaResetter{
-			statusQuotaResetter: statusQuotaResetter{
-				statusQuotaChecker: statusQuotaChecker{providerType: "codex", status: "available"},
-				client:             client,
-			},
+			providerType: "codex", status: "available",
+			client: client,
 			svc:    svc,
 			stages: []string{"available", "unknown"},
 			// In-flight check #2 saved unknown on top of #1's available:
@@ -922,10 +914,8 @@ func TestProviderQuotaService_ResetChannelQuotaNow_FailedReloadUnknownCacheUsesF
 		// In-flight check saves available (fresh carry), then unknown; the
 		// refresh reports exhausted.
 		svc.checkers["codex"] = &stagedSavingQuotaResetter{
-			statusQuotaResetter: statusQuotaResetter{
-				statusQuotaChecker: statusQuotaChecker{providerType: "codex", status: "exhausted"},
-				client:             client,
-			},
+			providerType: "codex", status: "exhausted",
+			client: client,
 			svc:    svc,
 			stages: []string{"available", "unknown"},
 			afterStages: func(ctx context.Context) {
@@ -962,8 +952,8 @@ func TestProviderQuotaService_ResetChannelQuotaNow_EmitsRecoveryWhenReloadSuccee
 	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
 	svc, notifications, _ := newTestQuotaWebhookHarness(t, client)
 	svc.checkers["codex"] = &countingQuotaResetter{
-		countingQuotaChecker: countingQuotaChecker{providerType: "codex"},
-		resets:               provider_quota.ResetList{Supported: true},
+		providerType: "codex",
+		resets:       provider_quota.ResetList{Supported: true},
 	}
 
 	ch := createProviderQuotaCollectionChannel(t, ctx, client, "Codex", channel.TypeCodex)

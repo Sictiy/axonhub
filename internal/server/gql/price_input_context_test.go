@@ -6,9 +6,10 @@
 package gql
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/require"
 	"github.com/vektah/gqlparser/v2"
-	"testing"
 )
 
 func TestInputContextPricingModeGraphQLSchema(t *testing.T) {

@@ -83,11 +83,14 @@ type pprofServer struct {
 	addr   string
 }
 
-func (p *pprofServer) start(cfg Pprof) error {
+func (p *pprofServer) start(ctx context.Context, cfg Pprof) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("start pprof listener: %w", err)
+	}
 	if err := validatePprofAddr(cfg.Addr); err != nil {
 		return err
 	}
-	ln, err := net.Listen("tcp", cfg.Addr)
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", cfg.Addr)
 	if err != nil {
 		return fmt.Errorf("listen server.pprof.addr %s: %w", cfg.Addr, err)
 	}
@@ -98,16 +101,17 @@ func (p *pprofServer) start(cfg Pprof) error {
 		Handler:           newPprofHandler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	log.Info(context.Background(), "pprof server listening", log.String("addr", p.addr))
+	log.Info(ctx, "pprof server listening", log.String("addr", p.addr))
+	logCtx := context.WithoutCancel(ctx)
 
 	go func() {
 		defer func() {
 			if recovered := recover(); recovered != nil {
-				log.Error(context.Background(), "pprof server panicked", log.Any("panic", recovered))
+				log.Error(logCtx, "pprof server panicked", log.Any("panic", recovered))
 			}
 		}()
 		if err := p.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error(context.Background(), "pprof server stopped", log.Cause(err))
+			log.Error(logCtx, "pprof server stopped", log.Cause(err))
 		}
 	}()
 
@@ -127,7 +131,7 @@ func registerPprof(lc fx.Lifecycle, cfg Config) {
 	}
 	p := &pprofServer{}
 	lc.Append(fx.Hook{
-		OnStart: func(context.Context) error { return p.start(cfg.Pprof) },
+		OnStart: func(ctx context.Context) error { return p.start(ctx, cfg.Pprof) },
 		OnStop:  p.shutdown,
 	})
 }
