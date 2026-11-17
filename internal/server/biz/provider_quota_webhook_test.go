@@ -477,11 +477,9 @@ func TestProviderQuotaService_CredentialResetAfterFailedReloadEmitsRecoveryOnce(
 	// post-reset reload fails and the refresh proceeds on the stale
 	// pre-reset snapshot (mimicked by the resetter's soft-delete).
 	svc.checkers["codex"] = &resettingQuotaResetter{
-		countingQuotaResetter: countingQuotaResetter{
-			countingQuotaChecker: countingQuotaChecker{providerType: "codex"},
-			resets:               provider_quota.ResetList{Supported: true},
-		},
-		client: client,
+		providerType: "codex",
+		resets:       provider_quota.ResetList{Supported: true},
+		client:       client,
 	}
 	require.NoError(t, svc.ResetChannelQuotaNow(ctx, ch.ID))
 

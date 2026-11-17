@@ -56,7 +56,7 @@ func TestPprofHandlerAccess(t *testing.T) {
 
 func TestPprofServerServesHeapProfile(t *testing.T) {
 	p := &pprofServer{}
-	if err := p.start(Pprof{Enabled: true, Addr: "127.0.0.1:0"}); err != nil {
+	if err := p.start(t.Context(), Pprof{Enabled: true, Addr: "127.0.0.1:0"}); err != nil {
 		t.Fatalf("start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = p.shutdown(context.Background()) })
@@ -77,7 +77,7 @@ func TestPprofServerServesHeapProfile(t *testing.T) {
 
 func TestPprofServerRejectsNonLoopbackAddr(t *testing.T) {
 	p := &pprofServer{}
-	if err := p.start(Pprof{Enabled: true, Addr: "0.0.0.0:0"}); err == nil {
+	if err := p.start(t.Context(), Pprof{Enabled: true, Addr: "0.0.0.0:0"}); err == nil {
 		_ = p.shutdown(context.Background())
 		t.Fatal("start() with wildcard addr = nil, want error")
 	}
@@ -115,5 +115,15 @@ func TestRegisterPprofLifecycle(t *testing.T) {
 	if conn, err := net.Dial("tcp", addr); err == nil {
 		_ = conn.Close()
 		t.Fatal("pprof should stop listening after lifecycle stop")
+	}
+}
+
+func TestPprofServerHonorsCanceledStartContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	p := &pprofServer{}
+	if err := p.start(ctx, Pprof{Enabled: true, Addr: "127.0.0.1:0"}); err == nil {
+		_ = p.shutdown(context.Background())
+		t.Fatal("start() with canceled context = nil, want error")
 	}
 }
