@@ -9,6 +9,7 @@ import (
 	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/contexts"
 	"github.com/looplj/axonhub/internal/ent/apikey"
+	"github.com/looplj/axonhub/internal/ent/channel"
 	"github.com/looplj/axonhub/internal/ent/usagelog"
 )
 
@@ -21,8 +22,9 @@ type UserUsageBreakdown struct {
 }
 
 type UserUsageDetails struct {
-	Models  []UserUsageBreakdown `json:"models"`
-	APIKeys []UserUsageBreakdown `json:"apiKeys"`
+	Models   []UserUsageBreakdown `json:"models"`
+	APIKeys  []UserUsageBreakdown `json:"apiKeys"`
+	Channels []UserUsageBreakdown `json:"channels"`
 }
 
 func (s *SystemService) UserUsageDetails(ctx context.Context, userID int, from, to *time.Time) (*UserUsageDetails, error) {
@@ -44,8 +46,8 @@ func (s *SystemService) UserUsageDetails(ctx context.Context, userID int, from, 
 		return nil, fmt.Errorf("permission denied")
 	}
 	return authz.RunAsHost(ctx, s.entFromContext(ctx), "project-user-usage-details", func(ctx context.Context) (*UserUsageDetails, error) {
-		result := &UserUsageDetails{Models: []UserUsageBreakdown{}, APIKeys: []UserUsageBreakdown{}}
-		for _, byModel := range []bool{true, false} {
+		result := &UserUsageDetails{Models: []UserUsageBreakdown{}, APIKeys: []UserUsageBreakdown{}, Channels: []UserUsageBreakdown{}}
+		for _, grouping := range []string{"model", "key", "channel"} {
 			var rows []struct {
 				ID     string  `json:"id"`
 				Name   string  `json:"name"`
@@ -65,8 +67,13 @@ func (s *SystemService) UserUsageDetails(ctx context.Context, userID int, from, 
 				sel.Join(keys).On(sel.C(usagelog.FieldAPIKeyID), keys.C(apikey.FieldID))
 				sel.Where(sql.And(sql.EQ(keys.C(apikey.FieldUserID), userID), sql.EQ(keys.C(apikey.FieldProjectID), projectID)))
 				id, name := keys.C(apikey.FieldID), keys.C(apikey.FieldName)
-				if byModel {
+				if grouping == "model" {
 					id, name = sel.C(usagelog.FieldModelID), sel.C(usagelog.FieldModelID)
+				} else if grouping == "channel" {
+					channels := sql.Table(channel.Table)
+					sel.LeftJoin(channels).On(sel.C(usagelog.FieldChannelID), channels.C(channel.FieldID))
+					id = fmt.Sprintf("COALESCE(%s, 0)", sel.C(usagelog.FieldChannelID))
+					name = fmt.Sprintf("COALESCE(%s, '')", channels.C(channel.FieldName))
 				}
 				sel.Select(sql.As(id, "id"), sql.As(name, "name"), sql.As(sql.Count(sel.C(usagelog.FieldID)), "request_count"), sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", sel.C(usagelog.FieldTotalTokens)), "total_tokens"), sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", sel.C(usagelog.FieldTotalCost)), "total_cost")).GroupBy(id, name).OrderBy(sql.Desc("request_count"))
 			}).Scan(ctx, &rows)
@@ -75,10 +82,13 @@ func (s *SystemService) UserUsageDetails(ctx context.Context, userID int, from, 
 			}
 			for _, row := range rows {
 				v := UserUsageBreakdown{ID: row.ID, Name: row.Name, RequestCount: row.Count, TotalTokens: row.Tokens, TotalCost: row.Cost}
-				if byModel {
+				switch grouping {
+				case "model":
 					result.Models = append(result.Models, v)
-				} else {
+				case "key":
 					result.APIKeys = append(result.APIKeys, v)
+				case "channel":
+					result.Channels = append(result.Channels, v)
 				}
 			}
 		}
