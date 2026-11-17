@@ -38,7 +38,7 @@ export function useUsageStatsByUser(timeWindow?: string) {
 
 
 type UsageBreakdown = { id: string; name: string; requestCount: number; totalTokens: number; totalCost: number };
-type UserUsageDetails = { models: UsageBreakdown[]; apiKeys: UsageBreakdown[] };
+type UserUsageDetails = { models: UsageBreakdown[]; apiKeys: UsageBreakdown[]; channels: UsageBreakdown[] };
 
 export function useUserUsageDetails(userId?: string, from?: string, to?: string) {
   const projectId = useSelectedProjectId();

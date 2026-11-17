@@ -1,4 +1,6 @@
 {
+  "usageStats.channels": "Channels",
+  "usageStats.unknownChannel": "Unknown or deleted channel",
   "usageStats.backToUsers": "Back to users",
   "usageStats.models": "Models",
   "usageStats.apiKeys": "API keys",

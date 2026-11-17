@@ -18,7 +18,7 @@ func unitsInMillionTokens(units int64) decimal.Decimal {
 	return decimal.NewFromInt(units).Div(decimal.NewFromInt(1_000_000))
 }
 
-func computeItemSubtotal(quantity int64, pricing objects.Pricing) (objects.CostItem, decimal.Decimal) {
+func computeItemSubtotalWithInput(quantity, inputTokens int64, pricing objects.Pricing) (objects.CostItem, decimal.Decimal) {
 	item := objects.CostItem{
 		Quantity: quantity,
 	}
@@ -91,12 +91,16 @@ func computeItemSubtotal(quantity int64, pricing objects.Pricing) (objects.CostI
 		}
 
 		return item, decimal.Zero
-	case objects.PricingModeVolume:
+	case objects.PricingModeVolume, objects.PricingModeInputVolume:
+		tierQuantity := quantity
+		if pricing.Mode == objects.PricingModeInputVolume {
+			tierQuantity = max(inputTokens, 0)
+		}
 		if pricing.UsageTiered != nil {
 			matchedIdx := -1
 
 			for i, tier := range pricing.UsageTiered.Tiers {
-				if tier.UpTo != nil && quantity <= *tier.UpTo {
+				if tier.UpTo != nil && tierQuantity <= *tier.UpTo {
 					matchedIdx = i
 					break
 				}
@@ -191,7 +195,7 @@ func computeUsageCostWithItems(usage *llm.Usage, priceItems []objects.ModelPrice
 					// Process 5m variant if present
 					if usage.PromptTokensDetails.WriteCached5MinTokens > 0 {
 						pricing := it.FindPromptWriteCacheVariantPricing(objects.PromptWriteCacheVariantCode5Min)
-						item, sub := computeItemSubtotal(usage.PromptTokensDetails.WriteCached5MinTokens, pricing)
+						item, sub := computeItemSubtotalWithInput(usage.PromptTokensDetails.WriteCached5MinTokens, usage.PromptTokens, pricing)
 						item.ItemCode = it.ItemCode
 						item.PromptWriteCacheVariantCode = objects.PromptWriteCacheVariantCode5Min
 						items = append(items, item)
@@ -201,7 +205,7 @@ func computeUsageCostWithItems(usage *llm.Usage, priceItems []objects.ModelPrice
 					// Process 1h variant if present
 					if usage.PromptTokensDetails.WriteCached1HourTokens > 0 {
 						pricing := it.FindPromptWriteCacheVariantPricing(objects.PromptWriteCacheVariantCode1Hour)
-						item, sub := computeItemSubtotal(usage.PromptTokensDetails.WriteCached1HourTokens, pricing)
+						item, sub := computeItemSubtotalWithInput(usage.PromptTokensDetails.WriteCached1HourTokens, usage.PromptTokens, pricing)
 						item.ItemCode = it.ItemCode
 						item.PromptWriteCacheVariantCode = objects.PromptWriteCacheVariantCode1Hour
 						items = append(items, item)
@@ -219,7 +223,7 @@ func computeUsageCostWithItems(usage *llm.Usage, priceItems []objects.ModelPrice
 			quantity = 0
 		}
 
-		item, sub := computeItemSubtotal(quantity, it.Pricing)
+		item, sub := computeItemSubtotalWithInput(quantity, usage.PromptTokens, it.Pricing)
 		item.ItemCode = it.ItemCode
 		items = append(items, item)
 		total = total.Add(sub)

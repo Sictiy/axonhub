@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 
 const priceItemCodes = ['prompt_tokens', 'completion_tokens', 'prompt_cached_tokens', 'prompt_write_cached_tokens'] as const;
 const promptWriteCacheVariantCodes = ['five_min', 'one_hour'] as const;
-type PricingMode = 'flat_fee' | 'usage_per_unit' | 'usage_tiered' | 'usage_volume';
+type PricingMode = 'flat_fee' | 'usage_per_unit' | 'usage_tiered' | 'usage_volume' | 'input_context_volume';
 
 type PriceEditorFormValues = {
   prices: Array<{
@@ -186,7 +186,7 @@ const PriceItemRow = memo(function PriceItemRow({
   const requiredMessage = t('price.validation.priceRequired');
 
   useEffect(() => {
-    if ((pricingMode === 'usage_tiered' || pricingMode === 'usage_volume') && tierFields.length === 0) {
+    if ((pricingMode === 'usage_tiered' || pricingMode === 'usage_volume' || pricingMode === 'input_context_volume') && tierFields.length === 0) {
       appendTier({ upTo: null, pricePerUnit: '' });
     }
   }, [appendTier, pricingMode, tierFields.length]);
@@ -264,6 +264,7 @@ const PriceItemRow = memo(function PriceItemRow({
                     <SelectItem value='usage_per_unit'>{t('price.mode_usage_per_unit')}</SelectItem>
                     <SelectItem value='usage_tiered'>{t('price.mode_usage_tiered')}</SelectItem>
                     <SelectItem value='usage_volume'>{t('price.mode_usage_volume')}</SelectItem>
+                    <SelectItem value='input_context_volume'>{t('price.mode_input_context_volume')}</SelectItem>
                   </SelectContent>
                 </Select>
               </FormItem>
@@ -335,8 +336,9 @@ const PriceItemRow = memo(function PriceItemRow({
           </Button>
         </div>
 
-        {(pricingMode === 'usage_tiered' || pricingMode === 'usage_volume') && (
+        {(pricingMode === 'usage_tiered' || pricingMode === 'usage_volume' || pricingMode === 'input_context_volume') && (
           <div className='col-span-full ml-4 mt-2 min-w-0 space-y-2 rounded-md border border-dashed p-3'>
+            {pricingMode === 'input_context_volume' && <p className='text-muted-foreground text-xs'>{t('price.input_context_volume_help')}</p>}
             <div className='text-muted-foreground flex items-center justify-between text-xs'>
               <span>{t('price.tiers')}</span>
               <Button type='button' variant='outline' size='icon-sm' onClick={() => appendTier({ upTo: null, pricePerUnit: '0' })}>
@@ -508,7 +510,7 @@ const PriceVariantRow = memo(function PriceVariantRow({
 
   // Initialize tiers for usage_tiered and usage_volume mode
   useEffect(() => {
-    if ((pricingMode === 'usage_tiered' || pricingMode === 'usage_volume') && tierFields.length === 0) {
+    if ((pricingMode === 'usage_tiered' || pricingMode === 'usage_volume' || pricingMode === 'input_context_volume') && tierFields.length === 0) {
       appendTier({ upTo: null, pricePerUnit: '' });
     }
   }, [appendTier, pricingMode, tierFields.length]);
@@ -570,6 +572,7 @@ const PriceVariantRow = memo(function PriceVariantRow({
                   <SelectItem value='usage_per_unit'>{t('price.mode_usage_per_unit')}</SelectItem>
                   <SelectItem value='usage_tiered'>{t('price.mode_usage_tiered')}</SelectItem>
                   <SelectItem value='usage_volume'>{t('price.mode_usage_volume')}</SelectItem>
+                  <SelectItem value='input_context_volume'>{t('price.mode_input_context_volume')}</SelectItem>
                 </SelectContent>
               </Select>
             </FormItem>
@@ -634,8 +637,9 @@ const PriceVariantRow = memo(function PriceVariantRow({
         </Button>
       </div>
 
-      {(pricingMode === 'usage_tiered' || pricingMode === 'usage_volume') && (
+      {(pricingMode === 'usage_tiered' || pricingMode === 'usage_volume' || pricingMode === 'input_context_volume') && (
         <div className='ml-4 space-y-2 rounded-md border border-dashed p-2'>
+          {pricingMode === 'input_context_volume' && <p className='text-muted-foreground text-xs'>{t('price.input_context_volume_help')}</p>}
           <div className='text-muted-foreground flex items-center justify-between text-[10px]'>
             <span>{t('price.tiers')}</span>
             <Button

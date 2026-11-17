@@ -9,6 +9,7 @@ import { DateRangePicker, type DateTimeRangeValue } from '@/components/date-rang
 import { buildDateRangeWhereClause, defaultDateTimeRangeValue } from '@/utils/date-range';
 import { formatNumber } from '@/utils/format-number';
 import { useGeneralSettings } from '@/features/system/data/system';
+import { useSelectedProjectId } from '@/stores/projectStore';
 import { useUsageStatsByUser, useUserUsageDetails } from './data/usage-stats';
 import { Input } from '@/components/ui/input';
 import {
@@ -21,6 +22,11 @@ import {
 } from '@/components/ui/table';
 
 export default function UsageStatisticsPage() {
+  const projectId = useSelectedProjectId();
+  return <UsageStatisticsContent key={projectId ?? 'none'} />;
+}
+
+function UsageStatisticsContent() {
   const { t, i18n } = useTranslation();
   const [dateRange, setDateRange] = useState<DateTimeRangeValue | undefined>();
   const [searchTerm, setSearchTerm] = useState('');
@@ -128,13 +134,13 @@ export default function UsageStatisticsPage() {
         {selectedUser ? (
           <div className='flex-1 overflow-auto space-y-6'>
             <h2 className='text-lg font-semibold'>{selectedUser.userName}</h2>
-            {details.isLoading ? <Skeleton className='h-40 w-full' /> : details.error ? <div className='text-red-500'>{t('common.loadError')}</div> : ([['models', t('usageStats.models')], ['apiKeys', t('usageStats.apiKeys')]] as const).map(([key, title]) => (
+            {details.isLoading ? <Skeleton className='h-40 w-full' /> : details.error ? <div className='text-red-500'>{t('common.loadError')}</div> : ([['models', t('usageStats.models')], ['apiKeys', t('usageStats.apiKeys')], ['channels', t('usageStats.channels')]] as const).map(([key, title]) => (
               <section key={key}>
                 <h3 className='mb-2 font-semibold'>{title}</h3>
                 <div className='shadow-soft overflow-auto rounded-2xl border border-[var(--table-border)]'>
                   <Table className='bg-[var(--table-background)]'>
                     <TableHeader className='bg-[var(--table-header)]'><TableRow><TableHead>{title}</TableHead><TableHead className='text-right'>{t('dashboard.stats.requestCount')}</TableHead><TableHead className='text-right'>{t('dashboard.stats.tokenCount')}</TableHead><TableHead className='text-right'>{t('dashboard.stats.userCost')}</TableHead></TableRow></TableHeader>
-                    <TableBody>{details.data?.[key].map(item => <TableRow key={item.id}><TableCell>{item.name || item.id}</TableCell><TableCell className='text-right font-mono'>{formatNumber(item.requestCount)}</TableCell><TableCell className='text-right font-mono'>{formatNumber(item.totalTokens)}</TableCell><TableCell className='text-right font-mono'>{formatCurrency(item.totalCost)}</TableCell></TableRow>)}</TableBody>
+                    <TableBody>{details.data?.[key].map(item => <TableRow key={item.id}><TableCell>{item.name || (key === 'channels' ? t('usageStats.unknownChannel') : item.id)}</TableCell><TableCell className='text-right font-mono'>{formatNumber(item.requestCount)}</TableCell><TableCell className='text-right font-mono'>{formatNumber(item.totalTokens)}</TableCell><TableCell className='text-right font-mono'>{formatCurrency(item.totalCost)}</TableCell></TableRow>)}</TableBody>
                   </Table>
                   {!details.data?.[key].length && <div className='p-6 text-center text-sm text-muted-foreground'>{t('common.noResults')}</div>}
                 </div>

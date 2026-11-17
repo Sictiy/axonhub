@@ -265,6 +265,7 @@ export type ReasoningEffortMapping = z.infer<typeof reasoningEffortMappingSchema
 export const transformOptionsSchema = z.object({
   forceArrayInstructions: z.boolean().optional(),
   forceArrayInputs: z.boolean().optional(),
+  forceArrayStop: z.boolean().optional(),
   replaceDeveloperRoleWithSystem: z.boolean().optional(),
   reasoningEffortMapping: z.array(reasoningEffortMappingSchema).nullish(),
 });
@@ -468,6 +469,9 @@ export const disabledAPIKeySchema = z.object({
   errorCode: z.number(),
   reason: z.string().optional().nullable(),
   expiresAt: z.string().optional().nullable(),
+  // True when a proactive provider quota observation owns the disable. Missing
+  // means a manual, plugin or HTTP-rule disable (every pre-upgrade record).
+  quotaDisabled: z.boolean().optional().default(false),
 });
 export type DisabledAPIKey = z.infer<typeof disabledAPIKeySchema>;
 
@@ -535,7 +539,7 @@ export const testChannelAPIKeysPayloadSchema = z.object({
 export type TestChannelAPIKeysPayload = z.infer<typeof testChannelAPIKeysPayloadSchema>;
 
 // Pricing Schemas
-export const pricingModeSchema = z.enum(['flat_fee', 'usage_per_unit', 'usage_tiered', 'usage_volume']);
+export const pricingModeSchema = z.enum(['flat_fee', 'usage_per_unit', 'usage_tiered', 'usage_volume', 'input_context_volume']);
 export type PricingMode = z.infer<typeof pricingModeSchema>;
 
 export const priceItemCodeSchema = z.enum(['prompt_tokens', 'completion_tokens', 'prompt_cached_tokens', 'prompt_write_cached_tokens']);

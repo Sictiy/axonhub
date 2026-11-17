@@ -24,13 +24,17 @@ AxonHub tracks the following token types:
 
 ### Pricing Modes
 
-AxonHub supports three pricing modes:
+AxonHub supports the following pricing modes:
 
 | Mode | Description | Use Case |
 |------|-------------|----------|
 | **Flat Fee** (`flat_fee`) | Fixed fee per request | Fixed cost scenarios |
 | **Usage Per Unit** (`usage_per_unit`) | Price per 1M tokens | Most models |
-| **Tiered** (`usage_tiered`) | Tiered pricing based on usage | Volume discount scenarios |
+| **Tiered** (`usage_tiered`) | Charges each segment at its rate | Volume discount scenarios |
+| **Volume** (`usage_volume`) | Selects one rate using the item quantity and applies it to the whole item | Per-item volume tiers |
+| **Input context volume** (`input_context_volume`) | Selects one rate using total request input tokens and applies it to the whole item | Long-context pricing |
+
+Total input includes cached reads and writes. Configure matching context thresholds and rates separately for input, cached input, output, and other applicable items. A threshold is inclusive; the next rate applies above it. For example, with a 272,000 threshold, 272,001 input tokens selects the long-context rate for each configured item, not just the excess tokens. Configure the provider's actual rates and thresholds; unconfigured prices do not change automatically. Importing catalog entries with explicit context tiers through the channel price editor can populate those tiers.
 
 ### Cost Breakdown
 

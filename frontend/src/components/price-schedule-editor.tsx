@@ -20,7 +20,7 @@ const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
-type PricingMode = 'flat_fee' | 'usage_per_unit' | 'usage_tiered' | 'usage_volume';
+type PricingMode = 'flat_fee' | 'usage_per_unit' | 'usage_tiered' | 'usage_volume' | 'input_context_volume';
 const priceItemCodes = ['prompt_tokens', 'completion_tokens', 'prompt_cached_tokens', 'prompt_write_cached_tokens'] as const;
 
 type DateRangeValue = { start: string; end: string };
@@ -102,7 +102,7 @@ type PriceScheduleEditorProps = {
   priceIndex: number;
   currencyCode?: string;
   defaultTimezone?: string;
-  // Portal target for popups opened inside a dialog; see .agent/rules/frontend-ui.md.
+  // Portal target for popups opened inside a dialog; see .agents/rules/frontend-ui.md.
   portalContainer?: HTMLElement | null;
 };
 
@@ -921,7 +921,7 @@ const OverrideItemRow = memo(function OverrideItemRow({
 
   // Auto-initialize tiers when switching to tiered/volume mode
   useEffect(() => {
-    if ((pricingMode === 'usage_tiered' || pricingMode === 'usage_volume') && tierFields.length === 0) {
+    if ((pricingMode === 'usage_tiered' || pricingMode === 'usage_volume' || pricingMode === 'input_context_volume') && tierFields.length === 0) {
       appendTier({ upTo: null, pricePerUnit: '' });
     }
   }, [appendTier, pricingMode, tierFields.length]);
@@ -987,6 +987,7 @@ const OverrideItemRow = memo(function OverrideItemRow({
                   <SelectItem value='usage_per_unit'>{t('price.mode_usage_per_unit')}</SelectItem>
                   <SelectItem value='usage_tiered'>{t('price.mode_usage_tiered')}</SelectItem>
                   <SelectItem value='usage_volume'>{t('price.mode_usage_volume')}</SelectItem>
+                  <SelectItem value='input_context_volume'>{t('price.mode_input_context_volume')}</SelectItem>
                 </SelectContent>
               </Select>
             </FormItem>
@@ -1045,7 +1046,7 @@ const OverrideItemRow = memo(function OverrideItemRow({
           />
         )}
 
-        {(pricingMode === 'usage_tiered' || pricingMode === 'usage_volume') && <div className='flex-1' />}
+        {(pricingMode === 'usage_tiered' || pricingMode === 'usage_volume' || pricingMode === 'input_context_volume') && <div className='flex-1' />}
 
         <Button type='button' variant='ghost' size='icon-sm' className='text-destructive' onClick={onRemove} disabled={itemCount <= 1}>
           <IconTrash size={14} />
@@ -1053,8 +1054,9 @@ const OverrideItemRow = memo(function OverrideItemRow({
       </div>
 
       {/* Tier editor */}
-      {(pricingMode === 'usage_tiered' || pricingMode === 'usage_volume') && (
+      {(pricingMode === 'usage_tiered' || pricingMode === 'usage_volume' || pricingMode === 'input_context_volume') && (
         <div className='ml-4 space-y-2 rounded-md border border-dashed p-2'>
+          {pricingMode === 'input_context_volume' && <p className='text-muted-foreground text-xs'>{t('price.input_context_volume_help')}</p>}
           <div className='text-muted-foreground flex items-center justify-between text-[10px]'>
             <span>{t('price.tiers')}</span>
             <Button
