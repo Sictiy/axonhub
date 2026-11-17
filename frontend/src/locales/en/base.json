@@ -1,4 +1,6 @@
 {
+  "price.input_context_volume_help": "Rates are selected using total input tokens, including cached tokens. Each price item uses its own tier thresholds.",
+  "price.mode_input_context_volume": "Total input context tier",
   "sidebar.modules.admin": "Admin",
   "sidebar.modules.project": "Project",
   "sidebar.modules.plugins": "Plugins",
