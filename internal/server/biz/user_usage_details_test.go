@@ -8,7 +8,9 @@ import (
 	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/contexts"
 	"github.com/looplj/axonhub/internal/ent"
+	"github.com/looplj/axonhub/internal/ent/channel"
 	"github.com/looplj/axonhub/internal/ent/enttest"
+	"github.com/looplj/axonhub/internal/objects"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,6 +27,8 @@ func TestUserUsageDetailsProjectUserAndTime(t *testing.T) {
 	require.NoError(t, err)
 	other, err := client.APIKey.Create().SetName("other").SetKey("key-3").SetUserID(11).SetProjectID(1).Save(ctx)
 	require.NoError(t, err)
+	ch, err := client.Channel.Create().SetName("channel-a").SetType(channel.TypeOpenai).SetCredentials(objects.ChannelCredentials{}).SetSupportedModels([]string{"model-a"}).SetDefaultTestModel("model-a").Save(ctx)
+	require.NoError(t, err)
 	now := time.Now().UTC().Truncate(time.Second)
 	for i, v := range []struct {
 		key, project int
@@ -32,7 +36,11 @@ func TestUserUsageDetailsProjectUserAndTime(t *testing.T) {
 		at           time.Time
 		tokens       int64
 	}{{key1.ID, 1, "model-a", now, 10}, {key2.ID, 1, "model-a", now, 20}, {key1.ID, 1, "model-b", now, 30}, {other.ID, 1, "model-a", now, 40}, {key1.ID, 2, "model-a", now, 50}, {key1.ID, 1, "model-a", now.Add(-time.Hour), 60}} {
-		_, err = client.UsageLog.Create().SetRequestID(i + 1).SetAPIKeyID(v.key).SetProjectID(v.project).SetModelID(v.model).SetTotalTokens(v.tokens).SetCreatedAt(v.at).Save(ctx)
+		create := client.UsageLog.Create().SetRequestID(i + 1).SetAPIKeyID(v.key).SetProjectID(v.project).SetModelID(v.model).SetTotalTokens(v.tokens).SetTotalCost(0.5).SetCreatedAt(v.at)
+		if i != 2 {
+			create.SetChannelID(ch.ID)
+		}
+		_, err = create.Save(ctx)
 		require.NoError(t, err)
 	}
 	from := now.Add(-time.Minute)
@@ -41,11 +49,25 @@ func TestUserUsageDetailsProjectUserAndTime(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, data.Models, 2)
 	require.Len(t, data.APIKeys, 2)
+	require.Len(t, data.Channels, 2)
+	require.Equal(t, "channel-a", data.Channels[0].Name)
+	require.Equal(t, 2, data.Channels[0].RequestCount)
+	require.EqualValues(t, 30, data.Channels[0].TotalTokens)
+	require.InDelta(t, 1.0, data.Channels[0].TotalCost, 0.00001)
+	require.Empty(t, data.Channels[1].Name)
+	require.EqualValues(t, 30, data.Channels[1].TotalTokens)
 	require.Equal(t, "model-a", data.Models[0].Name)
 	require.Equal(t, 2, data.Models[0].RequestCount)
 	require.EqualValues(t, 30, data.Models[0].TotalTokens)
 	require.Equal(t, "first", data.APIKeys[0].Name)
 	require.EqualValues(t, 40, data.APIKeys[0].TotalTokens)
+	// Historical usage remains attributed after a channel is renamed and soft deleted.
+	_, err = client.Channel.UpdateOneID(ch.ID).SetName("renamed-channel").SetDeletedAt(12345).Save(ctx)
+	require.NoError(t, err)
+	data, err = service.UserUsageDetails(ctx, 10, &from, &to)
+	require.NoError(t, err)
+	require.Equal(t, "renamed-channel", data.Channels[0].Name)
+	require.EqualValues(t, 30, data.Channels[0].TotalTokens)
 	// Historical usage remains attributed after a key is renamed and soft deleted.
 	_, err = client.APIKey.UpdateOneID(key1.ID).SetName("renamed").SetDeletedAt(12345).Save(ctx)
 	require.NoError(t, err)
@@ -58,6 +80,7 @@ func TestUserUsageDetailsProjectUserAndTime(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, empty.Models)
 	require.Empty(t, empty.APIKeys)
+	require.Empty(t, empty.Channels)
 	projectOwner := &ent.User{Edges: ent.UserEdges{ProjectUsers: []*ent.UserProject{{ProjectID: 1, IsOwner: true}}}}
 	_, err = service.UserUsageDetails(contexts.WithUser(ctx, projectOwner), 10, &from, &to)
 	require.NoError(t, err)

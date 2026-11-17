@@ -1,4 +1,6 @@
 {
+  "usageStats.channels": "渠道",
+  "usageStats.unknownChannel": "未知或已删除渠道",
   "usageStats.backToUsers": "返回用户列表",
   "usageStats.models": "模型",
   "usageStats.apiKeys": "API Key",
